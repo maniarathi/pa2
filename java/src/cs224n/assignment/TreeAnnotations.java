@@ -26,13 +26,13 @@ public class TreeAnnotations {
 		// TODO : mark nodes with the label of their parent nodes, giving a second
 		// order vertical markov process
 
-		return binarizeTree(unAnnotatedTree);
+		return binarizeTree(verticalMarkovizationOrder3(unAnnotatedTree,null,null));
 
 	}
 
 	private static Tree<String> verticalMarkovizationOrder2(Tree<String> tree, String parent) {
 		Tree<String> returnTree;
-		if (parent != null) {
+		if (parent == null) {
 			returnTree = new Tree<String>(tree.getLabel());
 			List<Tree<String>> returnTreeChildren = new ArrayList<Tree<String>>();
 			for (Tree<String> child : tree.getChildren()) {
@@ -40,18 +40,27 @@ public class TreeAnnotations {
 			}
 			returnTree.setChildren(returnTreeChildren);
 		} else {
-			String newLabel = tree.getLabel()+"^"+parent;
-			returnTree = new Tree<String>(newLabel);
-			List<Tree<String>> returnTreeChildren = new ArrayList<Tree<String>>();
-			for (Tree<String> child : tree.getChildren()) {
-				returnTreeChildren.add(verticalMarkovizationOrder2(child,tree.getLabel()));
+			if (tree.isLeaf()) {
+				returnTree = new Tree<String>(tree.getLabel());
+			} else {
+				String newLabel = tree.getLabel()+"^"+parent;
+				returnTree = new Tree<String>(newLabel);
+				List<Tree<String>> returnTreeChildren = new ArrayList<Tree<String>>();
+				for (Tree<String> child : tree.getChildren()) {
+					returnTreeChildren.add(verticalMarkovizationOrder2(child,tree.getLabel()));
+				}
+				returnTree.setChildren(returnTreeChildren);
 			}
-			returnTree.setChildren(returnTreeChildren);
 		}
 		return returnTree;
 	}
 	
 	private static Tree<String> verticalMarkovizationOrder3(Tree<String> tree, String parent, String grandparent) {
+		// Check if leaf; if so, make no changes
+		if (tree.isLeaf()) {
+			return new Tree<String>(tree.getLabel());
+		}
+		
 		String label = "";
 		// Create new label
 		if (parent != null) {
