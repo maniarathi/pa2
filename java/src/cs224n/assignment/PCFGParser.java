@@ -15,94 +15,44 @@ public class PCFGParser implements Parser {
 	private Grammar grammar;
 	private Lexicon lexicon;
 
-	private Tree<String> buildTree(
+	private Tree<String> buildTree(List<String> sentence,
 			Map<Triplet<Integer, Integer, String>, Double> score,
-			Map<Triplet<Integer, Integer, String>, List<String>> back,
+			Map<Triplet<Integer, Integer, String>, String> back,
 			Integer startIndex, Integer endIndex) {
-
-		Map<Triplet<Integer, Integer, String>, Double> possibleRoots = new HashMap<Triplet<Integer, Integer, String>, Double>();
-		// Find elements that cover entire span
-		for (Triplet<Integer, Integer, String> triple : score.keySet()) {
-			if (triple.getFirst() == startIndex
-					&& triple.getSecond() == endIndex) {
-				possibleRoots.put(triple, score.get(triple));
-			}
-		}
-		// Get max-es of those entire span elements
-		Double maxProb = 0.0;
-		List<Triplet<Integer, Integer, String>> maxTriple = new ArrayList<Triplet<Integer, Integer, String>>();
-		for (Triplet<Integer, Integer, String> triple : possibleRoots.keySet()) {
-			score.remove(triple);
-			if (possibleRoots.get(triple) >= maxProb) {
-				maxProb = possibleRoots.get(triple);
-				maxTriple.add(triple);
-			}
-		}
-		System.out.println(maxTriple.toString());
-		// Create new tree (giving preference to ROOT if it exists)
-		Triplet<Integer, Integer, String> chosenRoot = null;
-		List<Triplet<Integer, Integer, String>> possible = new ArrayList<Triplet<Integer, Integer, String>>();
-		boolean foundRoot = false;
-		for (Triplet<Integer, Integer, String> label : maxTriple) {
-			for (Triplet<Integer, Integer, String> backNode : back.keySet()) {
-				if (label.equals(backNode)) {
-					if (label.getThird() == "ROOT") {
-						foundRoot = true;
-						chosenRoot = label;
-					} else {
-						if (!foundRoot) {
-							possible.add(label);
-						}
-					}
-				}
-			}
-		}
-		if (possible.size() > 0 && !foundRoot) {
-			chosenRoot = possible.get(0);
-		}
-		System.out.println(chosenRoot.toString());
-		System.out.println(back.get(chosenRoot).toString());
-
-		Tree<String> returnTree = new Tree<String>(chosenRoot.getThird());
-		returnTree.setChildren(buildTreeHelper(score, back, startIndex,
-				endIndex, chosenRoot));
+		Triplet<Integer, Integer, String> root = new Triplet<Integer, Integer, String>(
+				startIndex, endIndex, "ROOT");
+		Tree<String> returnTree = new Tree<String>("ROOT");
+		returnTree.setChildren(buildTreeHelper(sentence, score, back,
+				startIndex, endIndex, root));
 		return returnTree;
 
 	}
 
-	private List<Tree<String>> buildTreeHelper(
+	private List<Tree<String>> buildTreeHelper(List<String> sentence,
 			Map<Triplet<Integer, Integer, String>, Double> score,
-			Map<Triplet<Integer, Integer, String>, List<String>> back,
+			Map<Triplet<Integer, Integer, String>, String> back,
 			Integer startIndex, Integer endIndex,
 			Triplet<Integer, Integer, String> root) {
 		// Get back pointer
-		List<String> backPointers = new ArrayList<String>();
+		String backPointer = null;
 		if (back.containsKey(root)) {
-			backPointers = back.get(root);
+			backPointer = back.get(root);
 		} else {
-			System.out.println("This is root: " + root.getThird());
-			System.out.println("I would print a word here");
-			System.out.println(startIndex);
-			return null;
+			Tree<String> child = new Tree<String>(sentence.get(startIndex));
+			List<Tree<String>> children = new ArrayList<Tree<String>>();
+			children.add(child);
+			return children;
 		}
-		// Find the backpointer with highest probability
-		System.out.println("BPs for " + root.getThird());
-		for (String bp : backPointers) {
-			System.out.println(bp);
-		}
-		String backPointer = backPointers.get(0);
+		// TODO: Find the backpointer with highest probability
 		if (!backPointer.contains("\t")) {
 			// Handle unaries
 			// Create one tree with root as root, then call recursively on same
 			// span for children
-			System.out.println("I AM A UNARY: " + backPointer);
 			Tree<String> tree = new Tree<String>(backPointer);
 			Triplet<Integer, Integer, String> newSearchTriplet = new Triplet<Integer, Integer, String>(
 					startIndex, endIndex, backPointer);
-			System.out.println("Unary start index, end index: " + startIndex
-					+ "," + endIndex);
-			List<Tree<String>> children = buildTreeHelper(score, back,
-					startIndex, endIndex, newSearchTriplet);
+			List<Tree<String>> children = buildTreeHelper(sentence, score,
+					back, startIndex, endIndex, newSearchTriplet);
 			if (children != null) {
 				tree.setChildren(children);
 			}
@@ -115,18 +65,15 @@ public class PCFGParser implements Parser {
 			// left child root, third contains right child root
 			String[] tokens = backPointer.split("\t");
 			Integer split = Integer.parseInt(tokens[0]);
-			System.out.println("SPLIT = " + split);
 			String leftRoot = tokens[1];
 			String rightRoot = tokens[2];
-			System.out.println("I AM A BINARY: " + backPointer);
 			// Get left tree
 			Tree<String> left = new Tree<String>(leftRoot);
 			Integer mid = split;
 			Triplet<Integer, Integer, String> nextLeft = new Triplet<Integer, Integer, String>(
 					startIndex, mid, leftRoot);
-			System.out.println("Left split: " + startIndex + "," + mid);
-			List<Tree<String>> leftChild = buildTreeHelper(score, back,
-					startIndex, split, nextLeft);
+			List<Tree<String>> leftChild = buildTreeHelper(sentence, score,
+					back, startIndex, split, nextLeft);
 			if (leftChild != null) {
 				left.setChildren(leftChild);
 			}
@@ -134,9 +81,8 @@ public class PCFGParser implements Parser {
 			Tree<String> right = new Tree<String>(rightRoot);
 			Triplet<Integer, Integer, String> nextRight = new Triplet<Integer, Integer, String>(
 					mid, endIndex, rightRoot);
-			System.out.println("Right split: " + mid + "," + endIndex);
-			List<Tree<String>> rightChild = buildTreeHelper(score, back, split,
-					endIndex, nextRight);
+			List<Tree<String>> rightChild = buildTreeHelper(sentence, score,
+					back, split, endIndex, nextRight);
 			if (rightChild != null) {
 				right.setChildren(rightChild);
 			}
@@ -149,21 +95,25 @@ public class PCFGParser implements Parser {
 	}
 
 	public void train(List<Tree<String>> trainTrees) {
+		System.out.println("Begin training...");
+		long startTime = System.currentTimeMillis();
 		List<Tree<String>> binarizedTrainTrees = new ArrayList<Tree<String>>();
 		for (Tree<String> tree : trainTrees) {
 			binarizedTrainTrees.add(TreeAnnotations.annotateTree(tree));
 		}
 		lexicon = new Lexicon(trainTrees);
 		grammar = new Grammar(binarizedTrainTrees);
-		System.out.println(grammar.toString());
+		// System.out.println(grammar.toString());
+		double time = (System.currentTimeMillis() - startTime) / 1000.0;
+		System.out.println("Done training... Time to complete = " + time);
 	}
 
 	public Tree<String> getBestParse(List<String> sentence) {
-		// TODO: implement this method
-		System.out.println(sentence.toString());
+		long startTime = System.currentTimeMillis();
+		System.out.println("Beginning finding the best parse...");
 		Map<Triplet<Integer, Integer, String>, Double> score = new HashMap<Triplet<Integer, Integer, String>, Double>();
-		Map<Triplet<Integer, Integer, String>, List<String>> back = new HashMap<Triplet<Integer, Integer, String>, List<String>>();
-		System.out.println("Begin handling words only...");
+		Map<Triplet<Integer, Integer, String>, String> back = new HashMap<Triplet<Integer, Integer, String>, String>();
+		System.out.println("Starting with lexicon...");
 		for (int i = 0; i < sentence.size(); i++) {
 			// Iterate through nonterminals A
 			Set<String> tags = lexicon.getAllTags();
@@ -180,6 +130,7 @@ public class PCFGParser implements Parser {
 			boolean added = true;
 			while (added) {
 				added = false;
+				Set<String> freshTags = new HashSet<String>();
 				// Iterate through nonterminals A, B where B is a terminal
 				for (String tag : usedTagsForUnaryHandling) {
 					List<UnaryRule> rules = grammar.getUnaryRulesByChild(tag);
@@ -192,175 +143,150 @@ public class PCFGParser implements Parser {
 						if (score.containsKey(newKey)) {
 							if (score.get(newKey) < prob) {
 								score.put(newKey, prob);
-								if (back.containsKey(newKey)) {
-									List<String> vals = back.get(newKey);
-									vals.add(rule.getChild());
-									back.put(newKey, vals);
-								} else {
-									List<String> vals = new ArrayList<String>();
-									vals.add(rule.getChild());
-									back.put(newKey, vals);
-								}
+								back.put(newKey, rule.getChild());
+								freshTags.add(newKey.getThird());
 								added = true;
 							}
 						} else {
 							score.put(newKey, prob);
-							if (back.containsKey(newKey)) {
-								List<String> vals = back.get(newKey);
-								vals.add(rule.getChild());
-								back.put(newKey, vals);
-							} else {
-								List<String> vals = new ArrayList<String>();
-								vals.add(rule.getChild());
-								back.put(newKey, vals);
-							}
+							back.put(newKey, rule.getChild());
+							freshTags.add(newKey.getThird());
 							added = true;
 						}
 					}
 				}
+				usedTagsForUnaryHandling = freshTags;
 			}
 		}
-		System.out.println("Finished handling words... now bigger phrases...");
+		double time = (System.currentTimeMillis() - startTime) / 1000.0;
+		startTime = System.currentTimeMillis();
+		System.out.println("Single words took time: " + time);
+		System.out.println("Starting with multi-word analysis...");
 		for (int span = 2; span <= sentence.size(); span++) {
+			time = (System.currentTimeMillis() - startTime) / 1000.0;
+			System.out.println("Span = " + span + " Time = " + time);
 			for (int begin = 0; begin <= (sentence.size() - span); begin++) {
 				int end = begin + span;
-				List<Triplet<Integer, Integer, String>> newlyAdded = new ArrayList<Triplet<Integer, Integer, String>>();
 				for (int split = begin + 1; split <= (end - 1); split++) {
+					List<Triplet<Integer, Integer, String>> newlyAdded = new ArrayList<Triplet<Integer, Integer, String>>();
+					long subStartTime = System.currentTimeMillis();
 					// Iterate through nonterminals A, B, C
-					// Get Triplets with begin,split
-					// Get Triplets with split,end
-					List<Triplet<Integer, Integer, String>> beginToSplit = new ArrayList<Triplet<Integer, Integer, String>>();
-					List<Triplet<Integer, Integer, String>> splitToEnd = new ArrayList<Triplet<Integer, Integer, String>>();
+					List<String> Bs = new ArrayList<String>();
+					List<String> Cs = new ArrayList<String>();
 					for (Triplet<Integer, Integer, String> triple : score
 							.keySet()) {
 						if (triple.getFirst() == begin
 								&& triple.getSecond() == split) {
-							beginToSplit.add(triple);
+							Bs.add(triple.getThird());
 						}
 						if (triple.getFirst() == split
 								&& triple.getSecond() == end) {
-							splitToEnd.add(triple);
+							Cs.add(triple.getThird());
 						}
 					}
 					// Iterate through B's
-					for (Triplet<Integer, Integer, String> triple : beginToSplit) {
+					for (String B : Bs) {
 						// Get rules
 						List<BinaryRule> rulesWithBOnLeftChild = grammar
-								.getBinaryRulesByLeftChild(triple.getThird());
+								.getBinaryRulesByLeftChild(B);
 						for (BinaryRule rule : rulesWithBOnLeftChild) {
-							for (Triplet<Integer, Integer, String> cTriple : beginToSplit) {
-								if (rule.getLeftChild() == cTriple.getThird()) {
+							for (String C : Cs) {
+								if (rule.getRightChild() == C) {
 									// We found a rule of the form A -> BC
-									Double prob = score.get(triple)
-											* score.get(cTriple)
+									Triplet<Integer, Integer, String> BTriplet = new Triplet<Integer, Integer, String>(
+											begin, split, B);
+									Triplet<Integer, Integer, String> CTriplet = new Triplet<Integer, Integer, String>(
+											split, end, C);
+									Double prob = score.get(BTriplet)
+											* score.get(CTriplet)
 											* rule.getScore();
 									Triplet<Integer, Integer, String> newKey = new Triplet<Integer, Integer, String>(
 											begin, end, rule.getParent());
-									if (!newlyAdded.contains(newKey)) {
-										newlyAdded.add(newKey);
-									}
+
 									if (score.containsKey(newKey)) {
 										// Only update if prob is bigger than
 										// existing one
 										if (score.get(newKey) < prob) {
+											if (!newlyAdded.contains(newKey)) {
+												newlyAdded.add(newKey);
+											}
 											score.put(newKey, prob);
 											String newTriple = Integer
 													.toString(split)
 													+ "\t"
-													+ triple.getThird()
-													+ "\t"
-													+ cTriple.getThird();
-											if (back.containsKey(newKey)) {
-												List<String> vals = back
-														.get(newKey);
-												vals.add(newTriple);
-												back.put(newKey, vals);
-											} else {
-												List<String> vals = new ArrayList<String>();
-												vals.add(newTriple);
-												back.put(newKey, vals);
-											}
+													+ B
+													+ "\t" + C;
+											back.put(newKey, newTriple);
 										}
 									} else {
+										if (!newlyAdded.contains(newKey)) {
+											newlyAdded.add(newKey);
+										}
 										score.put(newKey, prob);
 										String newTriple = Integer
 												.toString(split)
 												+ "\t"
-												+ triple.getThird()
-												+ "\t"
-												+ cTriple.getThird();
-										if (back.containsKey(newKey)) {
-											List<String> vals = back
-													.get(newKey);
-											vals.add(newTriple);
-											back.put(newKey, vals);
-										} else {
-											List<String> vals = new ArrayList<String>();
-											vals.add(newTriple);
-											back.put(newKey, vals);
-										}
+												+ B
+												+ "\t" + C;
+										back.put(newKey, newTriple);
 									}
 								}
 							}
 						}
 					}
-				}
-				// Handle unaries
-				boolean added = true;
-				while (added) {
-					added = false;
-					// Iterate through nonterminals A, B
-					// Iterate through B's
-					for (Triplet<Integer, Integer, String> triple : newlyAdded) {
-						// Get rules
-						List<UnaryRule> rules = grammar
-								.getUnaryRulesByChild(triple.getThird());
-						for (UnaryRule rule : rules) {
-							Double prob = rule.getScore() * score.get(triple);
-							Triplet<Integer, Integer, String> withParent = new Triplet<Integer, Integer, String>(
-									triple.getFirst(), triple.getSecond(),
-									rule.getParent());
-							if (score.containsKey(withParent)) {
-								if (score.get(withParent) < prob) {
+					// Handle unaries
+					boolean added = true;
+					while (added) {
+						added = false;
+						// Iterate through nonterminals A, B
+						// Iterate through B's
+						List<Triplet<Integer, Integer, String>> freshTags = new ArrayList<Triplet<Integer, Integer, String>>();
+						for (Triplet<Integer, Integer, String> triple : newlyAdded) {
+							// Get rules
+							List<UnaryRule> rules = grammar
+									.getUnaryRulesByChild(triple.getThird());
+							for (UnaryRule rule : rules) {
+								Double prob = rule.getScore()
+										* score.get(triple);
+								Triplet<Integer, Integer, String> withParent = new Triplet<Integer, Integer, String>(
+										triple.getFirst(), triple.getSecond(),
+										rule.getParent());
+								if (score.containsKey(withParent)) {
+									if (score.get(withParent) < prob) {
+										score.put(withParent, prob);
+										freshTags.add(withParent);
+										Triplet<Integer, Integer, String> keyForBack = new Triplet<Integer, Integer, String>(
+												begin, end, rule.getParent());
+										back.put(keyForBack, rule.getChild());
+										added = true;
+									}
+								} else {
 									score.put(withParent, prob);
+									freshTags.add(withParent);
 									Triplet<Integer, Integer, String> keyForBack = new Triplet<Integer, Integer, String>(
 											begin, end, rule.getParent());
-									if (back.containsKey(keyForBack)) {
-										List<String> vals = back
-												.get(keyForBack);
-										vals.add(rule.getChild());
-										back.put(keyForBack, vals);
-									} else {
-										List<String> vals = new ArrayList<String>();
-										vals.add(rule.getChild());
-										back.put(keyForBack, vals);
-									}
+									back.put(keyForBack, rule.getChild());
 									added = true;
 								}
-							} else {
-								score.put(withParent, prob);
-								Triplet<Integer, Integer, String> keyForBack = new Triplet<Integer, Integer, String>(
-										begin, end, rule.getParent());
-								if (back.containsKey(keyForBack)) {
-									List<String> vals = back.get(keyForBack);
-									vals.add(rule.getChild());
-									back.put(keyForBack, vals);
-								} else {
-									List<String> vals = new ArrayList<String>();
-									vals.add(rule.getChild());
-									back.put(keyForBack, vals);
-								}
-								added = true;
 							}
 						}
+						newlyAdded = freshTags;
 					}
 				}
 			}
 		}
-		System.out.println("Final scores: ");
-		System.out.println(score.toString());
-		System.out.println("Final back: ");
-		System.out.println(back.toString());
-		return TreeAnnotations.unAnnotateTree(buildTree(score, back, 0, sentence.size()));
+		time = (System.currentTimeMillis() - startTime) / 1000.0;
+		System.out.println("Multiwords took time: " + time);
+		for (Triplet<Integer, Integer, String> a : score.keySet()) {
+			System.out.println(a.toString() + "\t" + score.get(a));
+		}
+		System.out.println();
+		for (Triplet<Integer, Integer, String> b : back.keySet()) {
+			System.out.println(b.toString() + "\t" + back.get(b));
+		}
+		// System.out.println("That was the final score.. this is the final back");
+		// System.out.println(back.toString());
+		return TreeAnnotations.unAnnotateTree(buildTree(sentence, score, back,
+				0, sentence.size()));
 	}
 }

@@ -15,7 +15,7 @@ import cs224n.util.Filter;
  * scoring.
  */
 public class TreeAnnotations {
-
+	
 	public static Tree<String> annotateTree(Tree<String> unAnnotatedTree) {
 
 		// Currently, the only annotation done is a lossless binarization
@@ -30,6 +30,52 @@ public class TreeAnnotations {
 
 	}
 
+	private static Tree<String> verticalMarkovizationOrder2(Tree<String> tree, String parent) {
+		Tree<String> returnTree;
+		if (parent != null) {
+			returnTree = new Tree<String>(tree.getLabel());
+			List<Tree<String>> returnTreeChildren = new ArrayList<Tree<String>>();
+			for (Tree<String> child : tree.getChildren()) {
+				returnTreeChildren.add(verticalMarkovizationOrder2(child,tree.getLabel()));
+			}
+			returnTree.setChildren(returnTreeChildren);
+		} else {
+			String newLabel = tree.getLabel()+"^"+parent;
+			returnTree = new Tree<String>(newLabel);
+			List<Tree<String>> returnTreeChildren = new ArrayList<Tree<String>>();
+			for (Tree<String> child : tree.getChildren()) {
+				returnTreeChildren.add(verticalMarkovizationOrder2(child,tree.getLabel()));
+			}
+			returnTree.setChildren(returnTreeChildren);
+		}
+		return returnTree;
+	}
+	
+	private static Tree<String> verticalMarkovizationOrder3(Tree<String> tree, String parent, String grandparent) {
+		String label = "";
+		// Create new label
+		if (parent != null) {
+			if (grandparent != null) {
+				// Grandparent is not null, parent is not null
+				label = tree.getLabel()+"^"+parent+"^"+grandparent;
+			} else {
+				// Parent is not null, but grandparent is null
+				label = tree.getLabel()+"^"+parent;
+			}
+		} else {
+			// Parent is null so grandparent is also null
+			label = tree.getLabel();
+		}
+		Tree<String> returnTree = new Tree<String>(label);
+		// Handle children
+		List<Tree<String>> returnTreeChildren = new ArrayList<Tree<String>>();
+		for (Tree<String> child : tree.getChildren()) {
+			returnTreeChildren.add(verticalMarkovizationOrder3(child,tree.getLabel(),parent));
+		}
+		returnTree.setChildren(returnTreeChildren);
+		return returnTree;
+	}
+	
 	private static Tree<String> binarizeTree(Tree<String> tree) {
 		String label = tree.getLabel();
 		if (tree.isLeaf())
@@ -53,7 +99,10 @@ public class TreeAnnotations {
 		Tree<String> leftTree = tree.getChildren().get(numChildrenGenerated);
 		List<Tree<String>> children = new ArrayList<Tree<String>>();
 		children.add(binarizeTree(leftTree));
-		if (numChildrenGenerated < tree.getChildren().size() - 1) {
+		if (numChildrenGenerated == tree.getChildren().size() - 2) {
+			Tree<String> rightTree = tree.getChildren().get(numChildrenGenerated + 1);
+			children.add(binarizeTree(rightTree));
+		} else if (numChildrenGenerated < tree.getChildren().size() - 1) {
 			Tree<String> rightTree = 
 					binarizeTreeHelper(tree, numChildrenGenerated + 1, 
 							intermediateLabel + "_" + leftTree.getLabel());
